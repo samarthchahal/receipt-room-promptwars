@@ -1,5 +1,5 @@
 import { stringify } from 'csv-stringify/sync';
-import { Transaction, CaseSummary, Category, CATEGORIES } from '../../shared/types';
+import { Transaction, CaseSummary, CATEGORIES } from '../../shared/types';
 
 /** Characters that could trigger formula injection in spreadsheets */
 const FORMULA_PREFIXES = ['=', '+', '-', '@', '\t', '\r', '\n'];
@@ -17,7 +17,7 @@ function sanitizeCell(value: string): string {
 
 /** Sanitize all values in a record */
 function sanitizeRow(row: Record<string, string>): Record<string, string> {
-  const result: Record<string, string> = {};
+  const result: Record<string, string> = Object.create(null);
   for (const [key, val] of Object.entries(row)) {
     result[key] = sanitizeCell(String(val ?? ''));
   }
@@ -37,7 +37,11 @@ export function generateReviewedCSV(transactions: Transaction[]): string {
     };
   });
 
-  return stringify(rows, { header: true });
+  // Keep original keys for value lookup while also neutralizing untrusted headers.
+  const columns = rows.length > 0
+    ? Object.keys(rows[0]).map(key => ({ key, header: sanitizeCell(key) }))
+    : undefined;
+  return stringify(rows, { header: true, columns });
 }
 
 export function generateCaseSummary(

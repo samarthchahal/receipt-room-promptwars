@@ -1,42 +1,53 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { parseCSV, MAX_FILE_SIZE } from '../engine/csvParser';
+import { parseCSV, MAX_FILE_SIZE, MAX_TRANSACTIONS } from '../engine/csvParser';
 import {
   createSession, getSession, getTransactions, reviewTransaction,
-  flagTransaction, getProgress, deleteSession
+  flagTransaction, getProgress, Session
 } from '../engine/sessionStore';
 import { generateReviewedCSV, generateCaseSummary, generateCaseSummaryText } from '../engine/exporter';
 import { findDuplicates, findRecurring } from '../engine/detective';
 import { isValidCategory } from '../engine/categorizer';
-import { CATEGORIES, ColumnMapping, ApiResponse } from '../../shared/types';
+import { CATEGORIES, ColumnMapping } from '../../shared/types';
 import { sampleCSV } from '../data/sampleData';
+import { isRecord, isSessionId, isTransactionId } from '../validation';
+
+type SessionResponse = Response<unknown, { session: Session }>;
 
 const router = Router();
 
 // Multer for CSV upload — memory storage, size limited
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_SIZE },
+  limits: {
+    fileSize: MAX_FILE_SIZE, files: 1, fields: 3, parts: 4,
+    fieldSize: 1024, fieldNameSize: 100,
+    // Column mappings are scalar strings; nested fields and sparse arrays are unnecessary.
+    fieldNestingDepth: 0, fieldArrayIndexLimit: 0,
+  },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
       cb(null, true);
     } else {
-      cb(new Error('Only CSV files are allowed'));
+      cb(Object.assign(new Error('Only CSV files are allowed'), { type: 'invalid.csv.type' }));
     }
   },
 });
 
 /** Middleware to extract and validate session */
-function requireSession(req: Request, res: Response, next: Function) {
-  const sessionId = req.headers['x-session-id'] as string;
+function requireSession(req: Request, res: SessionResponse, next: NextFunction) {
+  const sessionId = req.headers['x-session-id'];
   if (!sessionId) {
     return res.status(401).json({ success: false, error: 'Missing session ID' });
+  }
+  if (!isSessionId(sessionId)) {
+    return res.status(404).json({ success: false, error: 'Session not found or expired' });
   }
   const session = getSession(sessionId);
   if (!session) {
     return res.status(404).json({ success: false, error: 'Session not found or expired' });
   }
-  (req as any).session = session;
+  res.locals.session = session;
   next();
 }
 
@@ -46,7 +57,7 @@ router.get('/health', (_req: Request, res: Response) => {
 });
 
 // ─── Upload CSV ────────────────────────────────────────────
-router.post('/upload', upload.single('file'), (req: Request, res: Response) => {
+router.post('/upload', upload.single('file'), (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No file uploaded' });
@@ -56,11 +67,17 @@ router.post('/upload', upload.single('file'), (req: Request, res: Response) => {
     let mapping: ColumnMapping | undefined;
 
     // Check for explicit mapping in body
-    if (req.body.dateColumn && req.body.descriptionColumn && req.body.amountColumn) {
+    const body: unknown = req.body;
+    const fields = isRecord(body) ? body : {};
+    const columns = [fields.dateColumn, fields.descriptionColumn, fields.amountColumn];
+    if (columns.some(value => value !== undefined)) {
+      if (!columns.every(value => typeof value === 'string' && value.trim().length > 0)) {
+        return res.status(400).json({ success: false, error: 'Column mapping must contain dateColumn, descriptionColumn and amountColumn strings' });
+      }
       mapping = {
-        date: req.body.dateColumn,
-        description: req.body.descriptionColumn,
-        amount: req.body.amountColumn,
+        date: fields.dateColumn as string,
+        description: fields.descriptionColumn as string,
+        amount: fields.amountColumn as string,
       };
     }
 
@@ -86,8 +103,7 @@ router.post('/upload', upload.single('file'), (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Upload failed';
-    res.status(400).json({ success: false, error: msg });
+    next(err);
   }
 });
 
@@ -112,18 +128,19 @@ router.post('/demo', (_req: Request, res: Response) => {
 });
 
 // ─── Get Transactions ──────────────────────────────────────
-router.get('/transactions', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
+router.get('/transactions', requireSession, (_req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
   const txs = getTransactions(session);
   res.json({ success: true, data: txs });
 });
 
 // ─── Review Transaction ────────────────────────────────────
-router.post('/review', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
-  const { transactionId, category } = req.body;
+router.post('/review', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
+  const body: unknown = req.body;
+  const { transactionId, category } = isRecord(body) ? body : {};
 
-  if (!transactionId || typeof transactionId !== 'string') {
+  if (!isTransactionId(transactionId)) {
     return res.status(400).json({ success: false, error: 'Missing or invalid transactionId' });
   }
 
@@ -143,39 +160,44 @@ router.post('/review', requireSession, (req: Request, res: Response) => {
 });
 
 // ─── Batch Review ──────────────────────────────────────────
-router.post('/review/batch', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
-  const { reviews } = req.body;
+router.post('/review/batch', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
+  const body: unknown = req.body;
+  const reviews: unknown = isRecord(body) ? body.reviews : undefined;
 
   if (!Array.isArray(reviews)) {
     return res.status(400).json({ success: false, error: 'reviews must be an array' });
   }
+  if (reviews.length > MAX_TRANSACTIONS) {
+    return res.status(400).json({ success: false, error: `Maximum batch size is ${MAX_TRANSACTIONS}` });
+  }
 
-  const results = [];
-  const errors = [];
+  let updated = 0;
+  const errors: string[] = [];
 
   for (const r of reviews) {
-    if (!r.transactionId || !r.category || !isValidCategory(r.category)) {
-      errors.push(`Invalid review entry: ${JSON.stringify(r)}`);
+    if (!isRecord(r) || !isTransactionId(r.transactionId) || !isValidCategory(r.category)) {
+      errors.push('Invalid review entry');
       continue;
     }
     const tx = reviewTransaction(session, r.transactionId, r.category);
     if (tx) {
-      results.push(tx);
+      updated++;
     } else {
       errors.push(`Transaction not found: ${r.transactionId}`);
     }
   }
 
-  res.json({ success: true, data: { updated: results.length, errors } });
+  res.json({ success: true, data: { updated, errors } });
 });
 
 // ─── Flag Transaction ──────────────────────────────────────
-router.post('/flag', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
-  const { transactionId, flagType, flagged } = req.body;
+router.post('/flag', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
+  const body: unknown = req.body;
+  const { transactionId, flagType, flagged } = isRecord(body) ? body : {};
 
-  if (!transactionId || typeof transactionId !== 'string') {
+  if (!isTransactionId(transactionId)) {
     return res.status(400).json({ success: false, error: 'Missing transactionId' });
   }
 
@@ -196,30 +218,30 @@ router.post('/flag', requireSession, (req: Request, res: Response) => {
 });
 
 // ─── Progress ──────────────────────────────────────────────
-router.get('/progress', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
+router.get('/progress', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
   res.json({ success: true, data: getProgress(session) });
 });
 
 // ─── Duplicates ────────────────────────────────────────────
-router.get('/duplicates', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
+router.get('/duplicates', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
   const txs = getTransactions(session);
   const candidates = findDuplicates(txs);
   res.json({ success: true, data: candidates });
 });
 
 // ─── Recurring ─────────────────────────────────────────────
-router.get('/recurring', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
+router.get('/recurring', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
   const txs = getTransactions(session);
   const candidates = findRecurring(txs);
   res.json({ success: true, data: candidates });
 });
 
 // ─── Export CSV ────────────────────────────────────────────
-router.get('/export/csv', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
+router.get('/export/csv', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
   const txs = getTransactions(session);
   const csv = generateReviewedCSV(txs);
 
@@ -229,8 +251,8 @@ router.get('/export/csv', requireSession, (req: Request, res: Response) => {
 });
 
 // ─── Export Summary ────────────────────────────────────────
-router.get('/export/summary', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
+router.get('/export/summary', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
   const txs = getTransactions(session);
   const summary = generateCaseSummary(session.id, txs, session.importedAt);
   const text = generateCaseSummaryText(summary);
@@ -241,8 +263,8 @@ router.get('/export/summary', requireSession, (req: Request, res: Response) => {
 });
 
 // ─── Summary JSON ──────────────────────────────────────────
-router.get('/summary', requireSession, (req: Request, res: Response) => {
-  const session = (req as any).session;
+router.get('/summary', requireSession, (req: Request, res: SessionResponse) => {
+  const session = res.locals.session;
   const txs = getTransactions(session);
   const summary = generateCaseSummary(session.id, txs, session.importedAt);
   res.json({ success: true, data: summary });

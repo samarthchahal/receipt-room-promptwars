@@ -1,4 +1,4 @@
-import { RawTransaction, Category, CATEGORIES } from '../../shared/types';
+import { Category, CATEGORIES } from '../../shared/types';
 
 /** Keyword-based category suggestion engine — no AI required */
 const CATEGORY_RULES: Array<{ keywords: string[]; category: Category }> = [
@@ -71,6 +71,6 @@ export function suggestCategory(description: string): Category {
   return 'Other';
 }
 
-export function isValidCategory(cat: string): cat is Category {
-  return CATEGORIES.includes(cat as Category);
+export function isValidCategory(cat: unknown): cat is Category {
+  return typeof cat === 'string' && CATEGORIES.includes(cat as Category);
 }

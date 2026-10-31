@@ -1,4 +1,4 @@
-import { parse } from 'csv-parse/sync';
+import { parse, CsvError } from 'csv-parse/sync';
 import { RawTransaction, ColumnMapping } from '../../shared/types';
 
 /** Maximum number of transactions we allow */
@@ -48,7 +48,7 @@ function parseAmount(raw: string): number {
     cleaned = '-' + cleaned.slice(1, -1);
   }
   const num = parseFloat(cleaned);
-  return isNaN(num) ? 0 : num;
+  return Number.isFinite(num) ? num : 0;
 }
 
 function parseDate(raw: string): string {
@@ -76,21 +76,38 @@ export function parseCSV(
 ): ParseResult {
   const errors: string[] = [];
 
+  if (Buffer.byteLength(content, 'utf8') > MAX_FILE_SIZE) {
+    return { transactions: [], headers: [], errors: ['CSV file exceeds the 5 MB limit'], detectedMapping: null };
+  }
+
   let records: Record<string, string>[];
+  let recordCount = 0;
   try {
     records = parse(content, {
       columns: true,
+      // Keep duplicate-column grouping disabled: it exposes prototype setters in v5.
+      group_columns_by_name: false,
       skip_empty_lines: true,
       trim: true,
       relax_column_count: true,
       relax_quotes: true,
       bom: true,
+      max_record_size: MAX_FILE_SIZE,
+      // Stop during parsing rather than allocating every row before checking.
+      on_record: (record: Record<string, string>) => {
+        if (++recordCount > MAX_TRANSACTIONS) {
+          throw new Error('TRANSACTION_LIMIT');
+        }
+        return record;
+      },
     });
   } catch (e) {
     return {
       transactions: [],
       headers: [],
-      errors: [`CSV parsing failed: ${(e as Error).message}`],
+      errors: [recordCount > MAX_TRANSACTIONS
+        ? `Too many transactions. Maximum is ${MAX_TRANSACTIONS}`
+        : `CSV parsing failed${e instanceof CsvError ? ` (${e.code})` : ''}. Please check the CSV format.`],
       detectedMapping: null,
     };
   }
@@ -124,15 +141,6 @@ export function parseCSV(
   }
   if (errors.length > 0) {
     return { transactions: [], headers, errors, detectedMapping };
-  }
-
-  if (records.length > MAX_TRANSACTIONS) {
-    return {
-      transactions: [],
-      headers,
-      errors: [`Too many transactions: ${records.length}. Maximum is ${MAX_TRANSACTIONS}`],
-      detectedMapping,
-    };
   }
 
   const transactions: RawTransaction[] = [];

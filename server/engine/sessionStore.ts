@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { Transaction, Category, SessionProgress, CATEGORIES } from '../../shared/types';
 import { RawTransaction } from '../../shared/types';
@@ -29,7 +28,7 @@ setInterval(() => {
       sessions.delete(id);
     }
   }
-}, CLEANUP_INTERVAL_MS);
+}, CLEANUP_INTERVAL_MS).unref();
 
 /** Generate cryptographically secure session ID */
 function generateSessionId(): string {
@@ -55,7 +54,7 @@ export function createSession(rawTransactions: RawTransaction[], headers: string
   const txMap = new Map<string, Transaction>();
 
   for (const raw of rawTransactions) {
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     const tx: Transaction = {
       id,
       date: raw.date,

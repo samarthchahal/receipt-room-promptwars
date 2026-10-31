@@ -3,7 +3,9 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import multer from 'multer';
 import apiRouter from './routes/api';
+import { isRecord } from './validation';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '8080', 10);
@@ -34,6 +36,11 @@ const limiter = rateLimit({
   message: { success: false, error: 'Too many requests, please try again later' },
 });
 app.use('/api', limiter);
+// Session tokens and financial data must not be stored by shared HTTP caches.
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -60,15 +67,42 @@ if (isProduction) {
 }
 
 // ─── Error Handler ─────────────────────────────────────────
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  // Don't expose stack traces
-  const message = isProduction ? 'Internal server error' : (err.message || 'Unknown error');
-  console.error('[Server Error]', err.message);
-  res.status(err.status || 500).json({ success: false, error: message });
+app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) return next(err);
+  let status = 500;
+  let message = 'Internal server error';
+  const type = isRecord(err) ? err.type : undefined;
+  if (type === 'entity.parse.failed') {
+    status = 400;
+    message = 'Invalid JSON request body';
+  } else if (type === 'entity.too.large') {
+    status = 413;
+    message = 'Request body too large';
+  } else if (type === 'invalid.csv.type') {
+    status = 400;
+    message = 'Only CSV files are allowed';
+  } else if (err instanceof multer.MulterError) {
+    status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    message = err.code === 'LIMIT_FILE_SIZE' ? 'CSV file exceeds the 5 MB limit' : 'Invalid multipart upload';
+  } else if (err instanceof Error && [
+    'Multipart: Boundary not found', 'Malformed part header',
+    'Unexpected end of form', 'Unexpected end of file',
+  ].includes(err.message)) {
+    status = 400;
+    message = 'Invalid multipart upload';
+  } else if (type === 'encoding.unsupported' || type === 'charset.unsupported') {
+    status = 415;
+    message = 'Unsupported request encoding';
+  } else if (isRecord(err) && err.status === 400) {
+    status = 400;
+    message = 'Malformed request';
+  }
+  if (status === 500) console.error('[Server Error]', err instanceof Error ? err.message : 'Unknown error');
+  res.status(status).json({ success: false, error: message });
 });
 
 // ─── Start ─────────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
+if (require.main === module) app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔍 The Receipt Room server running on http://localhost:${PORT}`);
   if (isProduction) {
     console.log('   Serving frontend from /dist');
