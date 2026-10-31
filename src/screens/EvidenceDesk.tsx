@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import type { Transaction } from '../../shared/types';
-import { uploadCSV, startDemo, getTransactions, setSessionId } from '../api/client';
+import { uploadCSV, startDemo, getTransactions } from '../api/client';
 import './EvidenceDesk.css';
 
 interface Props {
@@ -68,9 +68,7 @@ export default function EvidenceDesk({ onImportComplete, onBack }: Props) {
     setIsDragging(true);
   }, []);
 
-  const handleDragLeave = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+  const handleDragLeave = useCallback(() => { setIsDragging(false); }, []);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,20 +83,26 @@ export default function EvidenceDesk({ onImportComplete, onBack }: Props) {
   return (
     <main className="evidence-desk" role="main">
       <div className="container">
-        <button className="btn btn-ghost" onClick={onBack} aria-label="Back to home">
-          ← Back
-        </button>
+        <button className="btn btn-ghost btn-sm" onClick={onBack} aria-label="Back to home">← Back to lobby</button>
 
         <div className="desk-content animate-fade-in">
+          {/* Envelope header */}
           <header className="desk-header">
-            <span className="desk-icon" aria-hidden="true">📋</span>
-            <h1>Evidence Desk</h1>
-            <p>Upload your expense file to begin the investigation, or open a demo case.</p>
+            <div className="desk-envelope-deco" aria-hidden="true">
+              <div className="envelope-body">
+                <div className="envelope-seal"></div>
+              </div>
+            </div>
+            <span className="stamp" style={{ marginBottom: '12px' }}>CONFIDENTIAL</span>
+            <h1>Case Dossier</h1>
+            <p className="desk-subtitle">
+              Upload your expense records to begin the investigation, or open a practice case file.
+            </p>
           </header>
 
-          {/* File Upload Area */}
+          {/* Upload Area */}
           <div
-            className={`drop-zone ${isDragging ? 'active' : ''}`}
+            className={`drop-zone desk-dropzone ${isDragging ? 'active' : ''}`}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -107,10 +111,7 @@ export default function EvidenceDesk({ onImportComplete, onBack }: Props) {
             tabIndex={0}
             aria-label="Upload CSV file. Click or drag and drop."
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                fileInputRef.current?.click();
-              }
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); }
             }}
             id="file-drop-zone"
           >
@@ -131,10 +132,18 @@ export default function EvidenceDesk({ onImportComplete, onBack }: Props) {
               </div>
             ) : (
               <>
-                <div className="drop-icon" aria-hidden="true">📂</div>
+                <div className="drop-visual" aria-hidden="true">
+                  <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+                    <rect x="8" y="12" width="40" height="32" rx="2" stroke="var(--terracotta)" strokeWidth="2" fill="none"/>
+                    <path d="M8 20h40" stroke="var(--terracotta)" strokeWidth="1.5"/>
+                    <path d="M28 28v10M24 34l4 4 4-4" stroke="var(--terracotta)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <rect x="16" y="6" width="16" height="8" rx="1" fill="var(--manila)" stroke="var(--sand)" strokeWidth="1.5"/>
+                    <text x="24" y="12.5" textAnchor="middle" fontSize="5" fill="var(--warm-gray)" fontFamily="monospace">CSV</text>
+                  </svg>
+                </div>
                 <p className="drop-title">Drop your expense CSV here</p>
-                <p className="drop-subtitle">or click to browse files</p>
-                <p className="drop-hint">Supports files with Date, Description, and Amount columns</p>
+                <p className="drop-subtitle">or click to browse your case files</p>
+                <p className="drop-hint">Accepts CSV files with Date, Description, and Amount columns · Max 5 MB</p>
               </>
             )}
           </div>
@@ -152,32 +161,31 @@ export default function EvidenceDesk({ onImportComplete, onBack }: Props) {
             <hr className="divider" />
           </div>
 
-          {/* Demo Button */}
+          {/* Demo */}
           <div className="desk-demo">
-            <button
-              className="btn btn-terracotta btn-lg"
-              onClick={handleDemo}
-              disabled={isLoading}
-              id="start-demo"
-            >
-              <span aria-hidden="true">🗂️</span>
-              Open Demo Investigation
+            <div className="demo-folder" aria-hidden="true">
+              <div className="demo-folder-body">
+                <div className="demo-folder-tab">DEMO</div>
+              </div>
+            </div>
+            <button className="btn btn-terracotta btn-lg" onClick={handleDemo} disabled={isLoading} id="start-demo">
+              🗂️ Open Demo Investigation
             </button>
-            <p className="desk-demo-hint">
-              50 fictional transactions — perfect for trying the experience
-            </p>
+            <p className="desk-demo-hint">50 fictional transactions — perfect for trying the experience</p>
           </div>
 
-          {/* Security Notice */}
-          <aside className="desk-security card" aria-label="Privacy information">
-            <h3>🔒 Your Data is Safe</h3>
-            <ul>
-              <li>Files are processed in memory only</li>
-              <li>No data is stored permanently</li>
-              <li>Sessions expire after 2 hours</li>
-              <li>We never connect to bank accounts</li>
-              <li>Your original file is never modified</li>
-            </ul>
+          {/* Security */}
+          <aside className="desk-security" aria-label="Privacy information">
+            <div className="security-inner">
+              <h3>🔒 Evidence Handling Protocol</h3>
+              <ul className="security-list">
+                <li>Files processed in memory only — never stored</li>
+                <li>Sessions expire after 2 hours</li>
+                <li>No bank account connections</li>
+                <li>Your original file is never modified</li>
+                <li>Export contains only your review decisions</li>
+              </ul>
+            </div>
           </aside>
         </div>
       </div>
