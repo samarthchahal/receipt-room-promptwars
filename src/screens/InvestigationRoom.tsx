@@ -1,392 +1,90 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { Transaction, Category, SessionProgress } from '../../shared/types';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { Transaction, Category } from '../../shared/types';
 import { CATEGORIES } from '../../shared/types';
-import {
-  reviewTransaction as apiReview,
-  getProgress as apiProgress,
-} from '../api/client';
+import { reviewTransaction } from '../api/client';
 import './InvestigationRoom.css';
 
-interface Props {
-  initialTransactions: Transaction[];
-  onCaseClosed: () => void;
-  onBack: () => void;
-}
-
-const CATEGORY_KEYS: Record<string, Category> = {
-  '1': 'Food & Dining',
-  '2': 'Shopping',
-  '3': 'Transport',
-  '4': 'Bills & Utilities',
-  '5': 'Entertainment',
-  '6': 'Health',
-  '7': 'Education',
-  '8': 'Other',
-};
-
-const CATEGORY_ICONS: Record<Category, string> = {
-  'Food & Dining': '🍽️',
-  'Shopping': '🛍️',
-  'Transport': '🚗',
-  'Bills & Utilities': '📄',
-  'Entertainment': '🎬',
-  'Health': '💊',
-  'Education': '📚',
-  'Other': '📌',
-};
-
-function formatAmount(amount: number): string {
-  const abs = Math.abs(amount);
-  const formatted = abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return amount < 0 ? `-$${formatted}` : `$${formatted}`;
-}
-
-function announce(msg: string) {
-  const el = document.getElementById('live-announcer');
-  if (el) el.textContent = msg;
-}
+interface Props { initialTransactions: Transaction[]; onCaseClosed: () => void; onBack: () => void; }
+const notes = ['MEALS · CAFÉS · RESTAURANTS','RETAIL · GOODS · APPAREL','RIDES · RAIL · FUEL','POWER · PHONE · SERVICES','CINEMA · MUSIC · LEISURE','MEDICAL · PHARMACY · CARE','BOOKS · COURSES · LEARNING','MISCELLANEOUS · SUNDRIES'];
+const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 export default function InvestigationRoom({ initialTransactions, onCaseClosed, onBack }: Props) {
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [progress, setProgress] = useState<SessionProgress | null>(null);
+  const [transactions, setTransactions] = useState(initialTransactions);
+  const [index, setIndex] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [stamp, setStamp] = useState<Category | null>(null);
+  const [error, setError] = useState('');
+  const [paused, setPaused] = useState(false);
+  const [help, setHelp] = useState(false);
   const [streak, setStreak] = useState(0);
-  const [isReviewing, setIsReviewing] = useState(false);
-  const [lastAction, setLastAction] = useState<string | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
+  const [notice, setNotice] = useState('');
   const [timerEnabled, setTimerEnabled] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
-  const [stampVisible, setStampVisible] = useState(false);
-  const [stampCategory, setStampCategory] = useState<string>('');
-  const [feedbackType, setFeedbackType] = useState<'success' | 'streak' | null>(null);
-
-  const unreviewed = useMemo(() => transactions.filter(t => !t.reviewed), [transactions]);
-  const reviewed = useMemo(() => transactions.filter(t => t.reviewed), [transactions]);
-
-  const currentTx = unreviewed[currentIndex] || null;
-  const percentComplete = transactions.length > 0
-    ? Math.round((reviewed.length / transactions.length) * 100)
-    : 0;
-
-  const refreshProgress = useCallback(async () => {
-    try {
-      const p = await apiProgress();
-      setProgress(p);
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => { refreshProgress(); }, [refreshProgress]);
-
+  const [elapsed, setElapsed] = useState(0);
+  const lock = useRef(false);
+  const alive = useRef(true);
+  const receiptRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
-    if (!timerEnabled || isPaused) return;
-    const iv = setInterval(() => setTimerSeconds(s => s + 1), 1000);
-    return () => clearInterval(iv);
-  }, [timerEnabled, isPaused]);
-
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  };
-
-  const handleCategorize = useCallback(async (category: Category) => {
-    if (!currentTx || isReviewing) return;
-    setIsReviewing(true);
-
+    if (!timerEnabled || paused) return;
+    const timer = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [timerEnabled, paused]);
+  const pending = transactions.filter(t => !t.reviewed);
+  const reviewed = transactions.filter(t => t.reviewed);
+  const current = pending[index % Math.max(pending.length, 1)];
+  const percent = transactions.length ? Math.round(reviewed.length / transactions.length * 100) : 0;
+  const clues = transactions.filter(t => t.duplicateFlag || t.recurringFlag);
+  const select = useCallback(async (category: Category) => {
+    if (!current || lock.current || paused) return;
+    lock.current = true; setBusy(true); setError('');
     try {
-      const updated = await apiReview(currentTx.id, category);
-
-      // Show stamp animation
-      setStampCategory(category);
-      setStampVisible(true);
-
-      setTimeout(() => {
-        setTransactions(prev => prev.map(t => t.id === updated.id ? updated : t));
-        setStampVisible(false);
-        setStreak(s => s + 1);
-        setLastAction(`${currentTx.description} → ${category}`);
-        setFeedbackType(streak >= 2 ? 'streak' : 'success');
-
-        setCurrentIndex(prev => {
-          const remaining = unreviewed.length - 1;
-          if (remaining <= 0) return 0;
-          return prev >= remaining ? 0 : prev;
-        });
-
-        announce(`Categorized ${currentTx.description} as ${category}. ${streak + 1} in a row.`);
-        setTimeout(() => setFeedbackType(null), 1200);
-        refreshProgress();
-      }, 450);
+      const updated = await reviewTransaction(current.id, category);
+      if (!alive.current) return;
+      setStamp(category);
+      await new Promise(resolve => setTimeout(resolve, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650));
+      if (!alive.current) return;
+      setTransactions(txs => txs.map(t => t.id === updated.id ? updated : t));
+      setIndex(i => i >= pending.length - 1 ? 0 : i);
+      setStreak(s => s + 1);
+      setNotice(updated.description + ' filed as ' + updated.confirmedCategory + '. Server confirmed.');
+      setStamp(null);
+      requestAnimationFrame(() => receiptRef.current?.focus());
     } catch (err) {
-      setLastAction(`Error: ${(err as Error).message}`);
-      setStreak(0);
-      setStampVisible(false);
+      if (alive.current) { setError((err as Error).message); setStreak(0); }
     } finally {
-      setIsReviewing(false);
+      lock.current = false;
+      if (alive.current) { setBusy(false); setStamp(null); }
     }
-  }, [currentTx, isReviewing, streak, unreviewed.length, refreshProgress]);
-
-  // Keyboard controls
+  }, [current, paused, pending.length]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (isPaused) return;
-      const cat = CATEGORY_KEYS[e.key];
-      if (cat) { e.preventDefault(); handleCategorize(cat); return; }
-      if (e.key === 'ArrowRight' || e.key === 'n') {
-        e.preventDefault();
-        setCurrentIndex(i => (i + 1) % Math.max(unreviewed.length, 1));
-      }
-      if (e.key === 'ArrowLeft' || e.key === 'p') {
-        e.preventDefault();
-        setCurrentIndex(i => (i - 1 + Math.max(unreviewed.length, 1)) % Math.max(unreviewed.length, 1));
-      }
-      if (e.key === 'Enter' && currentTx) { e.preventDefault(); handleCategorize(currentTx.suggestedCategory); }
-      if (e.key === ' ' && e.target === document.body) { e.preventDefault(); setIsPaused(p => !p); }
-      if (e.key === '?') { setShowKeyboardHelp(h => !h); }
+      if ((e.target as HTMLElement).closest('button, input, select, textarea, a') || e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
+      if (e.key === '?') { setHelp(h => !h); return; }
+      if (e.key === ' ') { e.preventDefault(); setPaused(p => !p); return; }
+      if (busy || paused || help) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= 8) { e.preventDefault(); void select(CATEGORIES[n - 1]); }
+      if (e.key === 'Enter' && current) { e.preventDefault(); void select(current.suggestedCategory); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); setIndex(i => (i + 1) % Math.max(pending.length, 1)); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); setIndex(i => (i - 1 + pending.length) % Math.max(pending.length, 1)); }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [handleCategorize, isPaused, currentTx, unreviewed.length]);
+    window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
+  }, [select, current, busy, paused, help, pending.length]);
+  // App reloads transactions from the server before resuming this screen.
+  useEffect(() => {
+    if (!pending.length) document.getElementById('close-case-btn')?.focus();
+  }, [pending.length]);
 
-  const allDone = unreviewed.length === 0 && transactions.length > 0;
-
-  // Office clutter level
-  const clutterLevel = percentComplete < 25 ? 'messy' : percentComplete < 50 ? 'cluttered' : percentComplete < 75 ? 'tidying' : percentComplete < 100 ? 'neat' : 'pristine';
-
-  return (
-    <main className="investigation" role="main" aria-label="Investigation Room">
-      <div className="container">
-        {/* Top Bar */}
-        <header className="inv-topbar">
-          <button className="btn btn-ghost btn-sm" onClick={onBack} aria-label="Back to evidence desk">← Back</button>
-          <div className="inv-topbar-center">
-            <h1 className="inv-logo">🔍 The Receipt Room</h1>
-          </div>
-          <div className="inv-topbar-actions">
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowKeyboardHelp(h => !h)} aria-label="Keyboard shortcuts" title="Shortcuts">
-              ⌨️
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setTimerEnabled(t => !t)} aria-label={timerEnabled ? 'Disable timer' : 'Enable timer'}>
-              {timerEnabled ? `⏱️ ${formatTime(timerSeconds)}` : '⏱️'}
-            </button>
-            <button className={`btn btn-sm ${isPaused ? 'btn-terracotta' : 'btn-ghost'}`} onClick={() => setIsPaused(p => !p)} aria-label={isPaused ? 'Resume' : 'Pause'}>
-              {isPaused ? '▶ Resume' : '⏸ Pause'}
-            </button>
-          </div>
-        </header>
-
-        {/* Keyboard Help */}
-        {showKeyboardHelp && (
-          <div className="kbd-modal card animate-fade-in" role="dialog" aria-label="Keyboard shortcuts">
-            <button className="kbd-close btn btn-ghost btn-sm" onClick={() => setShowKeyboardHelp(false)} aria-label="Close">✕</button>
-            <h3>⌨️ Keyboard Shortcuts</h3>
-            <div className="kbd-grid">
-              <div><span className="kbd">1</span>–<span className="kbd">8</span></div><div>Assign category</div>
-              <div><span className="kbd">Enter</span></div><div>Accept suggestion</div>
-              <div><span className="kbd">←</span> <span className="kbd">→</span></div><div>Navigate evidence</div>
-              <div><span className="kbd">Space</span></div><div>Pause / Resume</div>
-              <div><span className="kbd">?</span></div><div>Toggle shortcuts</div>
-            </div>
-          </div>
-        )}
-
-        {/* Paused */}
-        {isPaused && (
-          <div className="inv-overlay animate-fade-in" role="alert">
-            <div className="inv-overlay-card card">
-              <h2>⏸ Investigation Paused</h2>
-              <p>Press <span className="kbd">Space</span> or click Resume.</p>
-              <button className="btn btn-primary" onClick={() => setIsPaused(false)}>▶ Resume</button>
-            </div>
-          </div>
-        )}
-
-        {/* Progress Strip */}
-        <section className="inv-progress-strip" aria-label="Progress">
-          <div className="inv-progress-stats">
-            <span className="inv-pstat"><strong>{reviewed.length}</strong> reviewed</span>
-            <span className="inv-pstat-sep">·</span>
-            <span className="inv-pstat"><strong>{unreviewed.length}</strong> remaining</span>
-            <span className="inv-pstat-sep">·</span>
-            <span className="inv-pstat"><strong>{percentComplete}%</strong> complete</span>
-            {streak >= 3 && <span className="inv-streak-badge animate-stamp">🔥 {streak}x streak!</span>}
-          </div>
-          <div className="progress-bar" role="progressbar" aria-valuenow={percentComplete} aria-valuemin={0} aria-valuemax={100}>
-            <div className="progress-bar-fill" style={{ width: `${percentComplete}%` }}></div>
-          </div>
-        </section>
-
-        {/* Detective Desk Scene */}
-        <div className="inv-desk-scene" aria-hidden="true" data-clutter={clutterLevel}>
-          <div className="desk-clutter">
-            {percentComplete < 30 && <span className="clutter-item c1">📋</span>}
-            {percentComplete < 50 && <span className="clutter-item c2">📑</span>}
-            {percentComplete < 20 && <span className="clutter-item c3">🧾</span>}
-            {percentComplete < 40 && <span className="clutter-item c4">📝</span>}
-            {percentComplete >= 50 && <span className="clutter-item c5">📂</span>}
-            {percentComplete >= 75 && <span className="clutter-item c6">✨</span>}
-            {percentComplete >= 100 && <span className="clutter-item c7">🏆</span>}
-          </div>
-        </div>
-
-        {/* Main Game — 3-Column Desktop */}
-        {!isPaused && !allDone && currentTx && (
-          <div className="inv-desktop">
-            {/* LEFT — Casebook */}
-            <aside className="inv-casebook" aria-label="Case details">
-              <div className="casebook-inner">
-                <div className="casebook-header">
-                  <span className="casebook-label">CASE FILE</span>
-                  <h3 className="casebook-title">Expense Investigation</h3>
-                </div>
-                <div className="casebook-stat">
-                  <span className="casebook-stat-num">{reviewed.length}/{transactions.length}</span>
-                  <span className="casebook-stat-label">Evidence Reviewed</span>
-                </div>
-                <hr className="divider" style={{ margin: '12px 0' }}/>
-                <p className="casebook-note">
-                  <em>"{currentTx.description}"</em> — Transaction dated {currentTx.date}. Amount: {formatAmount(currentTx.amount)}.
-                  Suggested filing: <strong>{currentTx.suggestedCategory}</strong>.
-                </p>
-                <hr className="divider" style={{ margin: '12px 0' }}/>
-                {/* Category counts */}
-                <div className="casebook-categories">
-                  <span className="casebook-label">FILED EVIDENCE</span>
-                  {CATEGORIES.map(cat => {
-                    const count = reviewed.filter(t => t.confirmedCategory === cat).length;
-                    if (count === 0) return null;
-                    return (
-                      <div key={cat} className="casebook-cat-row">
-                        <span>{CATEGORY_ICONS[cat]} {cat}</span>
-                        <strong>{count}</strong>
-                      </div>
-                    );
-                  })}
-                  {reviewed.length === 0 && <p className="casebook-empty">No evidence filed yet.</p>}
-                </div>
-              </div>
-            </aside>
-
-            {/* CENTER — Evidence Desk */}
-            <section className="inv-evidence-area" aria-label="Current evidence">
-              {/* Receipt stack indicator */}
-              <div className="receipt-stack" aria-hidden="true">
-                <div className="stack-paper s3"></div>
-                <div className="stack-paper s2"></div>
-                <div className="stack-paper s1"></div>
-              </div>
-
-              {/* Main receipt card */}
-              <div className={`receipt-card ${stampVisible ? 'receipt-stamped' : ''}`} key={currentTx.id}>
-                <div className="receipt-card-inner animate-slide-in">
-                  {/* Receipt header */}
-                  <div className="receipt-top">
-                    <span className="receipt-badge">Evidence #{currentIndex + 1} of {unreviewed.length}</span>
-                    <div className="receipt-nav-mini">
-                      <button className="btn btn-ghost btn-sm" onClick={() => setCurrentIndex(i => (i - 1 + unreviewed.length) % unreviewed.length)} disabled={unreviewed.length <= 1} aria-label="Previous">‹</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setCurrentIndex(i => (i + 1) % unreviewed.length)} disabled={unreviewed.length <= 1} aria-label="Next">›</button>
-                    </div>
-                  </div>
-
-                  {/* Receipt body */}
-                  <div className="receipt-body">
-                    <div className="receipt-dotted-line"></div>
-                    <h2 className="receipt-merchant">{currentTx.description}</h2>
-                    <div className="receipt-meta">
-                      <span className="receipt-date">📅 {currentTx.date}</span>
-                    </div>
-                    <div className="receipt-amount-box">
-                      <span className="receipt-amount-label">TOTAL</span>
-                      <span className="receipt-amount-value" data-negative={currentTx.amount < 0}>
-                        {formatAmount(currentTx.amount)}
-                      </span>
-                    </div>
-                    <div className="receipt-dotted-line"></div>
-                  </div>
-
-                  {/* Suggestion */}
-                  <div className="receipt-suggestion">
-                    <span className="receipt-sugg-label">Suggested filing:</span>
-                    <button
-                      className="category-pill active"
-                      data-category={currentTx.suggestedCategory}
-                      onClick={() => handleCategorize(currentTx.suggestedCategory)}
-                      disabled={isReviewing}
-                      aria-label={`Accept: ${currentTx.suggestedCategory}`}
-                    >
-                      {CATEGORY_ICONS[currentTx.suggestedCategory]} {currentTx.suggestedCategory}
-                    </button>
-                    <span className="receipt-sugg-hint">Press <span className="kbd">Enter</span></span>
-                  </div>
-
-                  {/* Stamp overlay */}
-                  {stampVisible && (
-                    <div className="receipt-stamp-overlay animate-stamp" aria-hidden="true">
-                      <div className="stamp stamp-reviewed" style={{ fontSize: '0.9rem', transform: 'rotate(-6deg)' }}>
-                        ✓ REVIEWED
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--olive)', marginTop: '4px', fontWeight: 600 }}>
-                        {stampCategory}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Feedback */}
-              {lastAction && feedbackType && (
-                <div className={`inv-feedback ${feedbackType === 'streak' ? 'inv-feedback-streak' : ''} animate-fade-in`} role="status">
-                  ✅ {lastAction}
-                  {feedbackType === 'streak' && <span className="inv-combo"> 🔥 {streak}x combo!</span>}
-                </div>
-              )}
-            </section>
-
-            {/* RIGHT — Filing Cabinet */}
-            <aside className="inv-filing" aria-label="Filing cabinet">
-              <div className="filing-inner">
-                <span className="filing-label">📂 FILE INTO CATEGORY</span>
-                <div className="filing-folders" role="group" aria-label="Choose a category">
-                  {CATEGORIES.map((cat, i) => (
-                    <button
-                      key={cat}
-                      className="filing-folder"
-                      data-category={cat}
-                      onClick={() => handleCategorize(cat)}
-                      disabled={isReviewing}
-                      aria-label={`File as ${cat} (press ${i + 1})`}
-                    >
-                      <span className="folder-tab-visual">
-                        <span className="kbd">{i + 1}</span>
-                      </span>
-                      <span className="folder-icon">{CATEGORY_ICONS[cat]}</span>
-                      <span className="folder-name">{cat}</span>
-                      <span className="folder-count">
-                        {reviewed.filter(t => t.confirmedCategory === cat).length || ''}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </aside>
-          </div>
-        )}
-
-        {/* All Done */}
-        {allDone && (
-          <div className="inv-complete animate-fade-in">
-            <div className="card inv-complete-card">
-              <div className="stamp stamp-reviewed animate-stamp" style={{ fontSize: '1.1rem', marginBottom: '20px' }}>CASE COMPLETE</div>
-              <h2>All Evidence Reviewed!</h2>
-              <p>{transactions.length} transactions categorized and filed.</p>
-              <button className="btn btn-primary btn-lg" onClick={onCaseClosed} id="close-case-btn">
-                📋 Close the Case
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </main>
-  );
+  return <main className="investigation" aria-label="Investigation Room">
+    <section className="clue-rail" aria-label="Evidence pinboard"><article className="pinned-note"><p className="eyebrow">CURRENT DOCKET</p><strong>{transactions.length} expense records</strong><p>{reviewed.length} reviewed · {pending.length} pending</p></article><article className="pinned-note rail-memo"><p className="eyebrow">MEMORANDUM · CONFIDENTIAL</p><p>{clues.length ? clues.length + ' records carry duplicate or recurring flags. Examine the evidence before filing.' : 'Cross-examine every merchant. Suggestions are leads; the final classification is yours.'}</p></article>{clues.slice(0,1).map(t => <article className="pinned-note clue-record" key={t.id}><p className="eyebrow">{t.duplicateFlag ? 'DUPLICATE FLAG' : 'RECURRING FLAG'}</p><strong>{t.description}</strong><p>{money(t.amount)} · {t.date}</p></article>)}</section>
+    <div className="inv-toolbar"><button className="btn btn-secondary btn-sm" onClick={onBack} disabled={busy}>← Evidence intake</button><span className="micro">WORKING DOSSIER · EXPENSE REVIEW</span><div><button className="btn btn-secondary btn-sm" aria-pressed={timerEnabled} onClick={() => setTimerEnabled(t => !t)}>{timerEnabled ? Math.floor(elapsed / 60) + ':' + (elapsed % 60).toString().padStart(2, '0') : 'Timer'}</button><button className="btn btn-secondary btn-sm" onClick={() => setHelp(h => !h)} aria-expanded={help}>[?] Shortcuts</button><button className="btn btn-secondary btn-sm" onClick={() => setPaused(p => !p)} disabled={busy}>{paused ? 'Resume' : 'Pause'}</button></div></div>
+    {help && <section className="shortcut-sheet paper" aria-label="Keyboard shortcuts"><h2>Field keyboard manual</h2><p>1–8: file into a category · Enter: accept suggestion · Arrow keys: browse receipts · Space: pause · ?: show this guide.</p><button className="btn btn-secondary" onClick={() => setHelp(false)}>Close guide</button></section>}
+    {error && <p className="review-error" role="alert">Unable to file: {error}. Your receipt remains on the desk. Please retry.</p>}
+    <div className="sr-only" role="status" aria-live="polite">{notice}</div>
+    {paused ? <section className="paper inv-paused"><h1>Investigation paused</h1><p>Your evidence is waiting on the desk.</p><button className="btn btn-primary" onClick={() => setPaused(false)}>Resume investigation</button></section> : pending.length === 0 ? <section className="paper inv-paused"><span className="stamp">ALL EVIDENCE REVIEWED</span><h1>Ready for the archives.</h1><p>{reviewed.length} of {transactions.length} records confirmed by the server.</p><button className="btn btn-primary" onClick={onCaseClosed} id="close-case-btn">Close the Case →</button></section> : current && <div className="investigation-grid">
+      <aside className="casebook-paper" aria-label="Case details"><header className="document-heading"><p className="eyebrow">DOSSIER · ACTIVE INQUIRY</p><h1>The Expense<br/>Investigation</h1></header><section className="casebook-section"><p className="eyebrow">INVESTIGATION OBJECTIVE</p><p>Examine {transactions.length} expense records. Follow the merchant trail and classify every receipt.</p></section><section className="casebook-section"><div className="ledger-line"><strong>{reviewed.length} / {transactions.length} EVIDENCE AUDITED</strong><span>{percent}%</span></div><div className="progress-bar" role="progressbar" aria-label="Evidence reviewed" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><div className="progress-bar-fill" style={{width: percent + '%'}}/></div><p className="micro">{pending.length} REMAINING IN STACK</p></section><p className="eyebrow">FORENSIC CLUES & MARGINALIA</p><article className="field-note"><p className="eyebrow">NOTE 01 · CURRENT EVIDENCE</p><p>{current.description} · {current.date} · {money(current.amount)}</p></article><article className="field-note"><p className="eyebrow">NOTE 02 · ROUTING</p><p>Suggested filing: {current.suggestedCategory}. {current.duplicateFlag ? 'Duplicate flag recorded.' : ''} {current.recurringFlag ? 'Recurring flag recorded.' : ''}</p></article><section className="casebook-section"><p className="eyebrow">AUDIT CHECKLIST</p><p>☑ Evidence imported</p><p>{pending.length ? '□' : '☑'} Review all merchant receipts</p><p>□ Export reviewed ledger</p></section><div className="ledger-line"><span className="micro">CONSECUTIVE FILINGS</span><strong>{streak} CONFIRMED</strong></div></aside>
+      <section className="receipt-workspace" aria-label="Current receipt" aria-busy={busy}><div className={'physical-receipt ' + (stamp ? 'is-filed' : '')} key={current.id} ref={receiptRef} tabIndex={-1}><div className="brass-clip" aria-hidden="true"/><div className="receipt-routing"><p className="eyebrow">SUGGESTED CLASSIFICATION</p><strong>{current.suggestedCategory}</strong><span className="micro">INSPECTOR CONFIRMATION REQUIRED</span></div><h2>{current.description}</h2><p className="receipt-ref">TRANS REF: {current.id.slice(0,8).toUpperCase()}</p><p className="eyebrow receipt-date">DATE: {current.date}</p><div className="receipt-rule"/><div className="ledger-line"><strong>TRANSACTION DESCRIPTION</strong><strong>AMOUNT</strong></div><div className="receipt-item"><strong>{current.description}</strong><span>{money(current.amount)}</span></div><p className="receipt-ref">Original imported expense record</p><div className="receipt-rule"/><div className="receipt-total"><span>TOTAL AMOUNT:</span><strong>{money(current.amount)}</strong></div><p className="receipt-ref">CLASSIFICATION: {current.suggestedCategory}</p><p className="receipt-ref">{current.duplicateFlag ? 'DUPLICATE FLAG RECORDED' : 'NO DUPLICATE FLAG'} · {current.recurringFlag ? 'RECURRING FLAG RECORDED' : 'NO RECURRING FLAG'}</p><p className="receipt-end">* * * END OF EXPENSE VOUCHER * * *</p>{stamp && <div className="confirmed-stamp"><strong>REVIEWED</strong><span>{stamp}</span><small>SERVER CONFIRMED</small></div>}</div><div className="receipt-navigation"><button className="btn btn-secondary btn-sm" disabled={busy || pending.length < 2} onClick={() => setIndex(i => (i - 1 + pending.length) % pending.length)}>← Previous</button><span className="micro">{index % pending.length + 1} / {pending.length} PENDING</span><button className="btn btn-secondary btn-sm" disabled={busy || pending.length < 2} onClick={() => setIndex(i => (i + 1) % pending.length)}>Next →</button></div><button className="verify-receipt" disabled={busy || help} onClick={() => select(current.suggestedCategory)}>{busy ? stamp ? 'REVIEW CONFIRMED · FILING…' : 'AWAITING SERVER CONFIRMATION…' : '[ENTER] VERIFY & CLASSIFY SLIP'}</button><p className="hotkey-strip">[1–8] FILE INTO FOLDER · [← →] BROWSE · [SPACE] PAUSE</p></section>
+      <aside className="filing-cabinet" aria-label="Category filing cabinet"><header className="cabinet-heading"><strong>CABINET 04: LEDGERS</strong><span>8 SLOTS</span></header><p className="filing-instruction">SELECT A FOLDER TO FILE THIS RECEIPT</p><div className="folder-list">{CATEGORIES.map((cat,i) => <button className={'category-folder ' + (cat === current.suggestedCategory ? 'suggested' : '') + (stamp === cat ? 'folder-receiving' : '')} key={cat} disabled={busy || help} onClick={() => select(cat)} aria-label={'File as ' + cat + ' (press ' + (i+1) + ')'}><span className="folder-key">{i+1}</span><span><strong>{cat}</strong><small>{notes[i]}</small></span><span className="filed-count">{reviewed.filter(t => t.confirmedCategory === cat).length}</span></button>)}</div><div className="cabinet-footer"><span className="micro">CONFIRMED FILINGS</span><strong>{reviewed.length}</strong></div></aside>
+    </div>}
+  </main>;
 }

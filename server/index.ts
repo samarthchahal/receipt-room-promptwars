@@ -44,11 +44,17 @@ app.use('/api', apiRouter);
 
 // ─── Static Files (Production) ─────────────────────────────
 if (isProduction) {
-  const distPath = path.join(__dirname, '..', 'dist');
+  // After tsc compilation: __dirname = dist-server/server/
+  // Project root is two levels up, frontend build is in ./dist
+  const distPath = path.join(__dirname, '..', '..', 'dist');
   app.use(express.static(distPath));
 
-  // SPA fallback
-  app.get('*', (_req, res) => {
+  // SPA fallback — serve index.html for non-API, non-file routes
+  app.get('*', (req, res, next) => {
+    // Don't intercept API routes — let them 404 normally
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }

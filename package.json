@@ -9,7 +9,7 @@
     "dev:client": "vite",
     "build": "vite build && tsc -p tsconfig.server.json",
     "build:client": "vite build",
-    "start": "node dist-server/index.js",
+    "start": "node dist-server/server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",

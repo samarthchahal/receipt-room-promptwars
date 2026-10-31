@@ -7,3 +7,6 @@ dist-server
 .vscode
 .idea
 uploads/
+
+uploads/
+stitch-reference/

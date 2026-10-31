@@ -117,6 +117,10 @@ export function getExportSummaryUrl(): string {
 
 export async function downloadFile(url: string, filename: string) {
   const res = await fetch(url, { headers: sessionHeaders() });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error || 'Download failed. Please try again.');
+  }
   const blob = await res.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
