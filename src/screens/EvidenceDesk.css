@@ -1,0 +1,140 @@
+.evidence-desk {
+  min-height: 100vh;
+  padding: var(--space-xl) 0;
+}
+
+.desk-content {
+  max-width: 680px;
+  margin: var(--space-xl) auto 0;
+}
+
+.desk-header {
+  text-align: center;
+  margin-bottom: var(--space-2xl);
+}
+
+.desk-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: var(--space-sm);
+}
+
+.desk-header h1 {
+  margin-bottom: var(--space-sm);
+}
+
+.desk-header p {
+  color: var(--warm-gray);
+  font-size: 1.05rem;
+}
+
+.drop-icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-md);
+}
+
+.drop-title {
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin-bottom: var(--space-xs);
+}
+
+.drop-subtitle {
+  color: var(--warm-gray);
+  font-size: 0.95rem;
+  margin-bottom: var(--space-md);
+}
+
+.drop-hint {
+  font-size: 0.8rem;
+  color: var(--warm-gray);
+  opacity: 0.7;
+}
+
+.desk-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.desk-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--sand);
+  border-top-color: var(--terracotta);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.desk-error {
+  background: #fef2f0;
+  border: 1px solid #e8c4bc;
+  color: #8b3a2a;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-md);
+  font-size: 0.9rem;
+}
+
+.desk-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin: var(--space-xl) 0;
+}
+
+.desk-divider .divider {
+  flex: 1;
+  margin: 0;
+}
+
+.desk-divider-text {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--warm-gray);
+  font-size: 0.9rem;
+}
+
+.desk-demo {
+  text-align: center;
+  margin-bottom: var(--space-2xl);
+}
+
+.desk-demo-hint {
+  margin-top: var(--space-sm);
+  font-size: 0.85rem;
+  color: var(--warm-gray);
+}
+
+.desk-security {
+  background: var(--cream);
+  border-left: 3px solid var(--olive);
+}
+
+.desk-security h3 {
+  font-size: 1rem;
+  margin-bottom: var(--space-sm);
+}
+
+.desk-security ul {
+  list-style: none;
+  padding: 0;
+}
+
+.desk-security li {
+  padding: var(--space-xs) 0;
+  font-size: 0.9rem;
+  color: var(--warm-gray);
+}
+
+.desk-security li::before {
+  content: '✓ ';
+  color: var(--olive);
+  font-weight: 700;
+}

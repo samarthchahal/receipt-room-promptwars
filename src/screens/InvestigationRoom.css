@@ -1,0 +1,346 @@
+.investigation {
+  min-height: 100vh;
+  padding: var(--space-md) 0 var(--space-3xl);
+}
+
+/* Header */
+.inv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.inv-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.inv-title {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.inv-header-right {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.hide-mobile {
+  display: inline;
+}
+
+@media (max-width: 640px) {
+  .hide-mobile { display: none; }
+  .inv-title { font-size: 1.1rem; }
+}
+
+/* Progress */
+.inv-progress {
+  margin-bottom: var(--space-xl);
+}
+
+.inv-progress-stats {
+  display: flex;
+  gap: var(--space-xl);
+  margin-bottom: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.inv-stat {
+  text-align: center;
+}
+
+.inv-stat-value {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--espresso);
+  line-height: 1.2;
+}
+
+.inv-stat-label {
+  font-size: 0.75rem;
+  color: var(--warm-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.inv-streak {
+  color: var(--terracotta);
+}
+
+.inv-streak .inv-stat-value {
+  color: var(--terracotta);
+}
+
+/* Office Scene */
+.office-scene {
+  text-align: center;
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background: linear-gradient(to bottom, var(--sand), transparent);
+  border-radius: var(--radius-lg);
+  min-height: 48px;
+}
+
+.office-desk {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-md);
+  font-size: 1.5rem;
+}
+
+.office-item {
+  transition: opacity var(--transition-slow);
+}
+
+/* Evidence Card */
+.evidence-card {
+  max-width: 640px;
+  margin: 0 auto var(--space-lg);
+}
+
+.ev-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.ev-badge {
+  font-size: 0.78rem;
+  color: var(--warm-gray);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ev-body {
+  margin-bottom: var(--space-lg);
+}
+
+.ev-merchant {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  word-break: break-word;
+}
+
+.ev-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.ev-date {
+  font-size: 0.92rem;
+  color: var(--warm-gray);
+}
+
+.ev-amount {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--espresso);
+}
+
+.ev-amount[data-negative="true"] {
+  color: var(--olive);
+}
+
+.ev-suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding: var(--space-md);
+  background: var(--ivory);
+  border-radius: var(--radius-md);
+}
+
+.ev-suggestion-label {
+  font-size: 0.82rem;
+  color: var(--warm-gray);
+  font-weight: 600;
+}
+
+.ev-enter-hint {
+  font-size: 0.78rem;
+  color: var(--warm-gray);
+  margin-left: auto;
+}
+
+/* Category Grid */
+.ev-categories {
+  margin-bottom: var(--space-lg);
+}
+
+.ev-categories-label {
+  font-size: 0.85rem;
+  color: var(--warm-gray);
+  margin-bottom: var(--space-sm);
+  font-weight: 600;
+}
+
+.ev-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--space-sm);
+}
+
+@media (max-width: 480px) {
+  .ev-category-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.ev-nav {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Feedback */
+.inv-feedback {
+  max-width: 640px;
+  margin: 0 auto var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--cream);
+  border: 1px solid var(--sand);
+  border-left: 3px solid var(--olive);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  color: var(--espresso);
+}
+
+.inv-feedback-streak {
+  border-left-color: var(--terracotta);
+}
+
+.inv-combo {
+  font-weight: 700;
+  color: var(--terracotta);
+}
+
+/* Paused Overlay */
+.inv-paused {
+  position: fixed;
+  inset: 0;
+  background: rgba(247, 243, 235, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  backdrop-filter: blur(4px);
+}
+
+.inv-paused-card {
+  text-align: center;
+  padding: var(--space-3xl);
+  max-width: 400px;
+}
+
+.inv-paused-card h2 {
+  margin-bottom: var(--space-md);
+}
+
+.inv-paused-card p {
+  margin-bottom: var(--space-xl);
+  color: var(--warm-gray);
+}
+
+/* Keyboard Help */
+.kbd-help {
+  position: relative;
+  max-width: 400px;
+  margin: 0 auto var(--space-lg);
+  padding: var(--space-lg);
+}
+
+.kbd-help h3 {
+  margin-bottom: var(--space-md);
+  font-size: 1rem;
+}
+
+.kbd-close {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+}
+
+.kbd-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+/* Complete */
+.inv-complete {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3xl) 0;
+}
+
+.inv-complete-card {
+  text-align: center;
+  padding: var(--space-3xl);
+  max-width: 480px;
+}
+
+.inv-complete-card h2 {
+  margin-bottom: var(--space-sm);
+}
+
+.inv-complete-card p {
+  color: var(--warm-gray);
+  margin-bottom: var(--space-xl);
+}
+
+/* Sidebar Stats */
+.inv-sidebar {
+  max-width: 640px;
+  margin: var(--space-xl) auto 0;
+  padding: var(--space-lg);
+  background: var(--cream);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--sand);
+}
+
+.inv-sidebar h3 {
+  font-size: 0.95rem;
+  margin-bottom: var(--space-md);
+}
+
+.inv-sidebar-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.inv-sidebar-cat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.inv-sidebar-count {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--espresso);
+}
+
+/* Game area */
+.inv-game {
+  position: relative;
+}

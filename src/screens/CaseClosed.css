@@ -1,0 +1,242 @@
+.case-closed {
+  min-height: 100vh;
+  padding: var(--space-xl) 0 var(--space-3xl);
+}
+
+.cc-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: var(--space-md);
+  color: var(--warm-gray);
+}
+
+.cc-error {
+  max-width: 480px;
+  margin: var(--space-3xl) auto;
+  text-align: center;
+  padding: var(--space-2xl);
+}
+
+.cc-error h2 { margin-bottom: var(--space-md); }
+.cc-error p { margin-bottom: var(--space-xl); color: var(--warm-gray); }
+
+.cc-content {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* Header */
+.cc-header {
+  text-align: center;
+  padding: var(--space-2xl) 0 var(--space-xl);
+}
+
+.cc-stamp {
+  font-size: 1.1rem;
+  margin-bottom: var(--space-lg);
+  display: inline-block;
+}
+
+.cc-header h1 {
+  margin-bottom: var(--space-sm);
+}
+
+.cc-tagline {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--warm-gray);
+  font-size: 1.1rem;
+  margin-bottom: var(--space-xs);
+}
+
+.cc-case-id {
+  font-size: 0.8rem;
+  color: var(--warm-gray);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Stats Grid */
+.cc-stats {
+  margin-bottom: var(--space-xl);
+}
+
+.cc-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.cc-stat-card {
+  text-align: center;
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.cc-stat-icon {
+  font-size: 1.5rem;
+}
+
+.cc-stat-value {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--espresso);
+  line-height: 1.1;
+}
+
+.cc-stat-label {
+  font-size: 0.78rem;
+  color: var(--warm-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cc-progress {
+  text-align: center;
+}
+
+.cc-progress-text {
+  font-size: 0.85rem;
+  color: var(--warm-gray);
+  margin-top: var(--space-sm);
+  display: block;
+}
+
+/* Categories */
+.cc-categories {
+  margin-bottom: var(--space-xl);
+}
+
+.cc-categories h2 {
+  font-size: 1.15rem;
+  margin-bottom: var(--space-lg);
+}
+
+.cc-cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.cc-cat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.cc-cat-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--sand);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.cc-cat-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--olive), var(--terracotta));
+  border-radius: 9999px;
+  transition: width var(--transition-slow);
+}
+
+.cc-cat-count {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 0.95rem;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Flags */
+.cc-flags {
+  margin-bottom: var(--space-xl);
+}
+
+.cc-flags h2 {
+  font-size: 1.15rem;
+  margin-bottom: var(--space-md);
+}
+
+.cc-flag-grid {
+  display: flex;
+  gap: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.cc-flag-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.cc-flag-icon { font-size: 1.2rem; }
+
+.cc-flag-count {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+.cc-flag-label {
+  font-size: 0.88rem;
+  color: var(--warm-gray);
+}
+
+/* Downloads */
+.cc-downloads {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+  padding: var(--space-2xl);
+  background: var(--cream);
+  border: 1px solid var(--sand);
+  border-radius: var(--radius-lg);
+}
+
+.cc-downloads h2 {
+  font-size: 1.25rem;
+  margin-bottom: var(--space-sm);
+}
+
+.cc-downloads-desc {
+  color: var(--warm-gray);
+  font-size: 0.95rem;
+  margin-bottom: var(--space-xl);
+}
+
+.cc-download-btns {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* New Investigation */
+.cc-new {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.cc-new .divider {
+  margin-bottom: var(--space-xl);
+}
+
+/* Footer */
+.cc-footer {
+  text-align: center;
+}
+
+.cc-disclaimer {
+  font-size: 0.82rem;
+  color: var(--warm-gray);
+  max-width: 480px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
